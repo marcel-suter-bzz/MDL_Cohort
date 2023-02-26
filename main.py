@@ -26,7 +26,7 @@ def main():
     pass
 
 
-def create_cohort(group):
+def create_cohort(group: Group) -> None:
     """
     creates a new cohort in moodle
     :param group: the group to be created
@@ -38,20 +38,27 @@ def create_cohort(group):
 
     data = {
         'cohorts[0][categorytype][type]': 'id',
-        'cohorts[0][categorytype][value]': find_cohortid(group.name),
+        'cohorts[0][categorytype][value]': find_groupid(group.name),
         'cohorts[0][name]': group.name,
         'cohorts[0][idnumber]': group.name
     }
 
-    if os.environ['DEBUG'] == 'False':
+    if os.environ['DEBUG'] == 'False' or \
+            os.environ['DEBUG'] == 'Manual' and \
+            input(f'Create {group.name} in {find_groupid(group.name)} (y/n)? ') == 'y':
         response = requests.post(url, params=data)
         content = response.json()
         group.moodle_id = content[0]['id']
 
-    print(f'create_cohort {group.name}')
+        print(f'create_cohort {group.name}')
 
 
-def find_cohortid(name):
+def find_groupid(name: str) -> int:
+    """
+    finds the category id by matching the cohortname
+    :param name:
+    :return:
+    """
     categories = {
         'ABU?[0-9]{2}[a-z]': '17',
         'FB(A|B|M)[0-9]{2}[a-z]': '7',
@@ -66,7 +73,7 @@ def find_cohortid(name):
     return 1
 
 
-def update_cohorts(group, people_dict):
+def update_cohorts(group: Group, people_dict: dict) -> None:
     """
     updates the moodle cohorts
     :param group:
@@ -76,11 +83,11 @@ def update_cohorts(group, people_dict):
     for student in group.students:
         if people_dict[student].moodle_id == -1:
             add_members(group, people_dict[student])
-        elif people_dict[student].azure_user == False:
-            print(f'Delete {group.name} / {student}')
+        elif not people_dict[student].azure_user:
+            delete_members(group, people_dict[student])
 
 
-def add_members(group, student):
+def add_members(group: Group, student: Person) -> None:
     """
     adds all new members to a cohort
     :param group: the group (moodle cohort)
@@ -89,21 +96,44 @@ def add_members(group, student):
     """
     url = os.getenv('MOODLEURL') + '?wstoken=' + os.getenv('MOODLETOKEN') + \
           '&wsfunction=core_cohort_add_cohort_members&moodlewsrestformat=json'
-    data = {}
-    data['members[0][cohorttype][type]'] = 'id'
-    data['members[0][cohorttype][value]'] = group.moodle_id
-    data['members[0][usertype][type]'] = 'username'
-    data['members[0][usertype][value]'] = student.email
+    data = {
+        'members[0][cohorttype][type]': 'id',
+        'members[0][cohorttype][value]': group.moodle_id,
+        'members[0][usertype][type]': 'username',
+        'members[0][usertype][value]': student.email
+    }
 
-    if os.environ['DEBUG'] == 'False':
+    if os.environ['DEBUG'] == 'False' or \
+            os.environ['DEBUG'] == 'Manual' and \
+            input(f'Add {student.email} to {group.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data)
-        foo = response.json()
-    print(f'Add {group.name} / {student}')
+        print(f'Add {group.name} / {student}')
 
 
-def load_mdl_cohorts(cohort_dicts):
+def delete_members(group: Group, student: Person) -> None:
     """
-    TODO
+    deletes a member from the group (cohort)
+    :param group:
+    :param student:
+    :return:
+    """
+    url = os.getenv('MOODLEURL') + '?wstoken=' + os.getenv('MOODLETOKEN') + \
+          '&wsfunction=core_cohort_delete_cohort_members&moodlewsrestformat=json'
+    data = {
+        'members[0][cohortid]': group.moodle_id,
+        'members[0][userid]': student.moodle_id
+    }
+
+    if os.environ['DEBUG'] == 'False' or \
+            os.environ['DEBUG'] == 'Manual' and \
+            input(f'Remove {student.email} from {group.name} (y/n)? ') == 'y':
+        response = requests.post(url, params=data)
+        print(f'Delete {group.name} / {student}')
+
+
+def load_mdl_cohorts(cohort_dicts: dict) -> None:
+    """
+    loads all moodle cohorts
     :param cohort_dicts:
     :return:
     """
@@ -115,7 +145,7 @@ def load_mdl_cohorts(cohort_dicts):
             cohort_dicts[item['name']].moodle_id = item['id']
 
 
-def load_members(cohort, people_dict):
+def load_members(cohort: Group, people_dict: dict) -> None:
     """
     reads the members of a cohort into the cohort-dict
     :param cohort: the cohort
@@ -135,22 +165,25 @@ def load_members(cohort, people_dict):
             if users:
                 load_users(cohort, people_dict, users)
     except:
-        pass
+        print(f'Error in load_members: {user_id}')
 
 
-def has_moodle_id(people_dict, user_id):
+def has_moodle_id(people_dict: dict, user_id: int) -> bool:
     for person_key in people_dict:
         if people_dict[person_key].moodle_id == user_id:
             return True
     return False
 
 
-def load_users(cohort, people_dict, user_ids):
+def load_users(cohort: Group, people_dict: dict, user_ids: list) -> None:
     """
     loads the moodle users
-    :param user_ids: list of user-ids
+    :param cohort:
+    :param people_dict:
+    :param user_ids:
     :return:
     """
+
     query = ''
     count = 0
     for user_id in user_ids:
@@ -167,11 +200,13 @@ def load_users(cohort, people_dict, user_ids):
             people_dict[key].moodle_id = item['id']
         else:
             people_dict[key] = Person(key, item['id'], False)
+        if key not in cohort.students:
+            cohort.students.append(key)
 
 
-def load_ad_groups(group_dict, person_dict):
+def load_ad_groups(group_dict: dict, person_dict: dict) -> None:
     """
-    TODO
+    loads the groups and members from azure ad export
     :param group_dict:
     :param person_dict:
     :return:
@@ -188,9 +223,10 @@ def load_ad_groups(group_dict, person_dict):
                     person_dict[email] = Person(email, -1, True)
 
 
-def get_semesters():
+def get_semesters() -> list[str]:
     """
     gets the current and next semester
+    :return:
     """
     today = datetime.today()
     year = int(today.strftime("%Y"))
@@ -199,11 +235,11 @@ def get_semesters():
 
     if month == '01':
         semesters.append('_' + str(year - 1) + 'HE')
-    if month >= '01' and month <= '07':
+    if '01' <= month <= '07':
         semesters.append('_' + str(year) + 'FR')
-    if month >= '05' and month <= '12':
+    if '05' <= month <= '12':
         semesters.append('_' + str(year) + 'HE')
-    if month >= '11' and month <= '12':
+    if '11' <= month <= '12':
         semesters.append('_' + str(year + 1) + 'FR')
     return semesters
 
