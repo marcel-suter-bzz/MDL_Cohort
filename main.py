@@ -43,8 +43,8 @@ def create_cohort(group: Group) -> None:
         'cohorts[0][idnumber]': group.name
     }
 
-    if os.environ['DEBUG'] == 'False' or \
-            os.environ['DEBUG'] == 'Manual' and \
+    if os.environ['CREATE'] == 'True' or \
+            os.environ['CREATE'] == 'Manual' and \
             input(f'Create {group.name} in {find_groupid(group.name)} (y/n)? ') == 'y':
         response = requests.post(url, params=data)
         content = response.json()
@@ -103,11 +103,13 @@ def add_members(group: Group, student: Person) -> None:
         'members[0][usertype][value]': student.email
     }
 
-    if os.environ['DEBUG'] == 'False' or \
-            os.environ['DEBUG'] == 'Manual' and \
+    if os.environ['CREATE'] == 'True' or \
+            os.environ['CREATE'] == 'Manual' and \
             input(f'Add {student.email} to {group.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data)
         print(f'Add {group.name} / {student}')
+    else:
+        print(f'Not added {group.name} / {student}')
 
 
 def delete_members(group: Group, student: Person) -> None:
@@ -124,11 +126,13 @@ def delete_members(group: Group, student: Person) -> None:
         'members[0][userid]': student.moodle_id
     }
 
-    if os.environ['DEBUG'] == 'False' or \
-            os.environ['DEBUG'] == 'Manual' and \
+    if os.environ['DELETE'] == 'True' or \
+            os.environ['DELETE'] == 'Manual' and \
             input(f'Remove {student.email} from {group.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data)
         print(f'Delete {group.name} / {student}')
+    else:
+        print(f'Not deleted {group.name} / {student}')
 
 
 def load_mdl_cohorts(cohort_dicts: dict) -> None:
@@ -212,7 +216,7 @@ def load_ad_groups(group_dict: dict, person_dict: dict) -> None:
     :return:
     """
     semeters = get_semesters()
-    with open(os.getenv('DATAPATH') + 'groups2.json', 'r', encoding='UTF-8') as file:
+    with open(os.getenv('GROUPFILE'), 'r', encoding='UTF-8') as file:
         groups = json.load(file)
         for group in groups:
             for semester in semeters:
