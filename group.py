@@ -13,6 +13,7 @@ class Group:
     name: str
     moodle_id: int
     students: list
+    is_current: bool
 
     @property
     def __dict__(self):
@@ -49,3 +50,11 @@ class Group:
     @students.setter
     def students(self, value):
         self._students = value
+
+    @property
+    def is_current(self):
+        return self._is_current
+
+    @is_current.setter
+    def is_current(self, value):
+        self._is_current = value
