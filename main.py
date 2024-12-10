@@ -10,6 +10,7 @@ from group import Group
 from person import Person
 
 
+
 def main():
     load_dotenv()
     groups_dict = dict()
@@ -45,7 +46,7 @@ def create_cohort(group: Group) -> None:
     if os.environ['CREATE'] == 'True' or \
             os.environ['CREATE'] == 'Manual' and \
             input(f'Create {group.name} in {find_groupid(group.name)} (y/n)? ') == 'y':
-        response = requests.post(url, params=data)
+        response = requests.post(url, params=data, verify=True)
         content = response.json()
         group.moodle_id = content[0]['id']
 
@@ -59,6 +60,10 @@ def update_cohorts(cohort: Group) -> None:
     :return:
     """
     for student in cohort.students:
+        if student.email == 'haegelin@bzz.ch':
+            pass
+        if student.quit == '1' and student.moodle_id > -1 and cohort.is_current is False:
+            delete_members(cohort, student)
         if student.moodle_id == -1:
             add_members(cohort, student)
         elif student.azure_user is False and cohort.is_current is False:
@@ -84,7 +89,7 @@ def add_members(group: Group, student: Person) -> None:
     if os.environ['CREATE'] == 'True' or \
             os.environ['CREATE'] == 'Manual' and \
             input(f'Add {student.email} to {group.name} (y/n)? ') == 'y':
-        response = requests.post(url, params=data)
+        response = requests.post(url, params=data, verify=True)
         print(f'Add {group.name} / {student}')
     else:
         print(f'Not added {group.name} / {student}')
@@ -107,7 +112,7 @@ def delete_members(group: Group, student: Person) -> None:
     if os.environ['DELETE'] == 'True' or \
             os.environ['DELETE'] == 'Manual' and \
             input(f'Remove {student.email} from {group.name} (y/n)? ') == 'y':
-        response = requests.post(url, params=data)
+        response = requests.post(url, params=data, verify=True)
         print(f'Delete {group.name} / {student}')
     else:
         print(f'Not deleted {group.name} / {student}')
@@ -143,13 +148,14 @@ def load_ad_groups(group_dict: dict) -> None:
     with open(os.getenv('GROUPFILE'), 'r', encoding='UTF-8') as file:
         groups = json.load(file)
         for group in groups:
+            print(f'Loading Group {group["name"]}')
             for ix, semester in enumerate(semesters):
                 current = ix == 0
                 group_key = group['name'] + semester
                 ad_group = Group(group_key, -1, list(), current)
 
                 for email in group['students']:
-                    person = Person(email=email, moodle_id=-1, azure_user=True)
+                    person = Person(email=email, moodle_id=-1, azure_user=True, quit=' ')
                     ad_group.students.append(person)
                 group_dict[group_key] = ad_group
 
@@ -162,10 +168,11 @@ def load_mdl_cohorts(cohort_dicts: dict) -> None:
     """
     url = os.getenv('MOODLEURL') + '?wstoken=' + os.getenv('MOODLETOKEN') + \
           '&wsfunction=core_cohort_get_cohorts&moodlewsrestformat=json'
-    response = requests.get(url)
+    response = requests.get(url, verify=True)
     for item in response.json():
         cohort_name = item['name']
         if cohort_name in cohort_dicts:
+            print (f'loading {cohort_name}')
             cohort_dicts[cohort_name].moodle_id = item['id']
             load_members(cohort_dicts[cohort_name])
 
@@ -179,22 +186,22 @@ def load_members(cohort: Group) -> None:
     url = os.getenv('MOODLEURL') + '?wstoken=' + os.getenv('MOODLETOKEN') + \
           '&wsfunction=core_cohort_get_cohort_members' \
           '&cohortids[0]=' + str(cohort.moodle_id) + '&moodlewsrestformat=json'
-    response = requests.get(url)
+    response = requests.get(url, verify=True)
     # try:
     for member in response.json():
         user_dict = dict()
         for user_id in member["userids"]:
-            user_dict[user_id] = ''
+            user_dict[user_id] = {}
     if user_dict:
         load_users(user_dict)
-        for moodle_id, user in user_dict.items():
-            student_ix = get_student_index(cohort, user)
+        for moodle_user, user in user_dict.items():
+            student_ix = get_student_index(cohort, user['username'])
             if student_ix == -1:
-                student = Person(email=user, moodle_id=moodle_id, azure_user=False)
+                student = Person(email=user['username'], moodle_id=moodle_user, azure_user=False, quit=user['quit'])
                 cohort.students.append(student)
             else:
-                cohort.students[student_ix].moodle_id = moodle_id
-            pass
+                cohort.students[student_ix].moodle_id = moodle_user
+                cohort.students[student_ix].quit = user['quit']
         pass
     # except:
     #    print(f'Error in load_members: {cohort.name}')
@@ -218,9 +225,12 @@ def load_users(user_dict):
     url = os.getenv('MOODLEURL') + '?wstoken=' + os.getenv('MOODLETOKEN') + \
           '&wsfunction=core_user_get_users_by_field&field=id' + \
           query + '&moodlewsrestformat=json'
-    response = requests.get(url)
+    response = requests.get(url, verify=True)
     for user in response.json():
-        user_dict[user['id']] = user['username']
+        user_dict[user['id']]['username'] = user['username']
+        for custom_field in user['customfields']:
+            if custom_field['shortname'] == 'quit':
+                user_dict[user['id']]['quit'] = custom_field['value']
 
 
 def get_semesters() -> list[str]:

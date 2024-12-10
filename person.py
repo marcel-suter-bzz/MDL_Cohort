@@ -12,6 +12,7 @@ class Person:
     email: str
     moodle_id: int
     azure_user: bool
+    quit: str
 
     @property
     def email(self):
@@ -36,3 +37,11 @@ class Person:
     @azure_user.setter
     def azure_user(self, value):
         self._azure_user = value
+
+    @property
+    def quit(self):
+        return self._quit
+    
+    @quit.setter
+    def quit(self, value):
+        self._quit = value
