@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from json import dumps
 
 
 @dataclass

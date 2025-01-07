@@ -18,7 +18,8 @@ def main():
     load_mdl_cohorts(groups_dict)
 
     for group_key in groups_dict:
-        print(f'Processing {group_key}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'Processing {group_key}')
         group = groups_dict[group_key]
         if group.moodle_id == -1:
             create_cohort(group)
@@ -50,7 +51,8 @@ def create_cohort(group: Group) -> None:
         content = response.json()
         group.moodle_id = content[0]['id']
 
-        print(f'create_cohort {group.name}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'create_cohort {group.name}')
 
 
 def update_cohorts(cohort: Group) -> None:
@@ -90,9 +92,11 @@ def add_members(group: Group, student: Person) -> None:
             os.environ['CREATE'] == 'Manual' and \
             input(f'Add {student.email} to {group.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data, verify=True)
-        print(f'Add {group.name} / {student}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'Add {group.name} / {student}')
     else:
-        print(f'Not added {group.name} / {student}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'Not added {group.name} / {student}')
 
 
 def delete_members(group: Group, student: Person) -> None:
@@ -113,9 +117,11 @@ def delete_members(group: Group, student: Person) -> None:
             os.environ['DELETE'] == 'Manual' and \
             input(f'Remove {student.email} from {group.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data, verify=True)
-        print(f'Delete {group.name} / {student}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'Delete {group.name} / {student}')
     else:
-        print(f'Not deleted {group.name} / {student}')
+        if os.getenv('DEBUG') == 'True':
+            print(f'Not deleted {group.name} / {student}')
 
 
 def find_groupid(name: str) -> int:
@@ -148,7 +154,8 @@ def load_ad_groups(group_dict: dict) -> None:
     with open(os.getenv('GROUPFILE'), 'r', encoding='UTF-8') as file:
         groups = json.load(file)
         for group in groups:
-            print(f'Loading Group {group["name"]}')
+            if os.getenv('DEBUG') == 'True':
+                print(f'Loading Group {group["name"]}')
             for ix, semester in enumerate(semesters):
                 current = ix == 0
                 group_key = group['name'] + semester
@@ -172,7 +179,8 @@ def load_mdl_cohorts(cohort_dicts: dict) -> None:
     for item in response.json():
         cohort_name = item['name']
         if cohort_name in cohort_dicts:
-            print (f'loading {cohort_name}')
+            if os.getenv('DEBUG') == 'True':
+                print (f'loading {cohort_name}')
             cohort_dicts[cohort_name].moodle_id = item['id']
             load_members(cohort_dicts[cohort_name])
 
@@ -204,7 +212,8 @@ def load_members(cohort: Group) -> None:
                 cohort.students[student_ix].quit = user['quit']
         pass
     # except:
-    #    print(f'Error in load_members: {cohort.name}')
+    #    if os.getenv('DEBUG') == 'True':
+    #        print(f'Error in load_members: {cohort.name}')
 
 
 def get_student_index(cohort: Group, email):
