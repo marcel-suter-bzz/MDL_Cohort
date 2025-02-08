@@ -4,7 +4,7 @@ main module for the moodle cohort updater
 import json
 import os
 from datetime import datetime
-from typing import re
+import re
 
 import requests
 from dotenv import load_dotenv
@@ -40,8 +40,11 @@ def load_ad_users(cohort_dict: dict, people_dict: dict) -> None:
     with open(os.getenv('GROUPFILE'), 'r', encoding='UTF-8') as file:
         groups = json.load(file)
         for group in groups:
-            #if 'IA23' not in group['name']:
-            #    continue
+            if not is_relevant_group(group['name']):
+                if os.getenv('DEBUG') == 'True':
+                    print(f'Skipping AD Group {group["name"]}')
+                continue
+
             if os.getenv('DEBUG') == 'True':
                 print(f'Loading AD Group {group["name"]}')
             for ix, semester in enumerate(semesters):
@@ -218,6 +221,28 @@ def create_moodle_cohort(cohort: Cohort) -> None:
         if os.getenv('DEBUG') == 'True':
             print(f'create_cohort {cohort.name}')
     pass
+
+def is_relevant_group(group: str) -> bool:
+    """
+    checks if a group is relevant
+    :param group:
+    :return:
+    """
+    if not re.match(r'[A-Z]{2,3}\d{2}[a-z]$', group):
+        if os.getenv('DEBUG') == 'True':
+            print(f'Skipping AD Group {group}')
+        return False
+
+    match = re.search(r'\d{2}', group)
+    if match:
+        current_year = int(datetime.today().strftime("%Y"))
+        group_year = 2000 + int(match.group())
+        if group_year + 5 < current_year:
+            if os.getenv('DEBUG') == 'True':
+                print(f'Skipping AD Group {group}')
+            return False
+
+    return True
 
 
 def get_semesters() -> list[str]:
