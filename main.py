@@ -215,7 +215,7 @@ def create_moodle_cohort(cohort: Cohort) -> None:
     if os.environ['CREATE'] == 'True' or \
             os.environ['CREATE'] == 'Manual' and \
             input(f'Create {cohort.name} in {find_groupid(cohort.name)} (y/n)? ') == 'y':
-        response = requests.get(url, verify=True)
+        response = requests.get(url, params=data, verify=True)
         cohort.moodle_id = response.json()[0]['id']
 
         if os.getenv('DEBUG') == 'True':
@@ -275,7 +275,7 @@ def find_groupid(name: str) -> int:
     :return:
     """
     categories = {  # TODO regex / values from .env
-        'ABU?[0-9]{2}[a-z]': '17',
+        'ABU?[0-9]{2}[a-z]': '2',
         'FB(A|B|M)[0-9]{2}[a-z]': '7',
         'I(A|M)[0-9]{2}[a-z]': '3',
         'ME[0-9]{2}[a-z]': '11',
