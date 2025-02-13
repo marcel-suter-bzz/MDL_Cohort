@@ -2,6 +2,7 @@
 main module for the moodle cohort updater
 """
 import json
+import logging
 import os
 from datetime import datetime
 import re
@@ -13,13 +14,13 @@ from Cohort import Cohort
 from Member import Member
 from Person import Person
 
+logger = logging.getLogger(__name__)
 
 def main():
     """
     main function
     :return:
     """
-    load_dotenv()
     cohort_dict = {}
     people_dict = {}
 
@@ -41,12 +42,10 @@ def load_ad_users(cohort_dict: dict, people_dict: dict) -> None:
         groups = json.load(file)
         for group in groups:
             if not is_relevant_group(group['name']):
-                if os.getenv('DEBUG') == 'True':
-                    print(f'Skipping AD Group {group["name"]}')
+                logger.info(f'Skipping AD Group {group["name"]}')
                 continue
 
-            if os.getenv('DEBUG') == 'True':
-                print(f'Loading AD Group {group["name"]}')
+            logger.info(f'Loading AD Group {group["name"]}')
             for ix, semester in enumerate(semesters):
                 current = ix == 0
                 group_key = group['name'] + semester
@@ -78,8 +77,7 @@ def load_moodle_users(cohort_dict: dict, people_dict: dict) -> None:
     for cohort in response.json():
         cohort_name = cohort['name']
         if cohort_name in cohort_dict:
-            if os.getenv('DEBUG') == 'True':
-                print(f'Loading Moodle Cohort {cohort_name}')
+            logger.info(f'Loading Moodle Cohort {cohort_name}')
             cohort_dict[cohort_name].moodle_id = cohort['id']
             load_members(cohort_dict[cohort_name], people_dict)
 
@@ -122,8 +120,7 @@ def update_moodle_cohorts(cohort_dict: dict) -> None:
     updates the moodle cohorts
     """
     for cohort in cohort_dict.values():
-        if os.getenv('DEBUG') == 'True':
-            print(f'Updating {cohort.name}')
+        logger.info(f'Updating {cohort.name}')
         if cohort.moodle_id == -1:
             create_moodle_cohort(cohort)
 
@@ -158,18 +155,18 @@ def add_member(cohort: Cohort, student: Person) -> None:
           f'&wsfunction=core_cohort_add_cohort_members' \
           f'&moodlewsrestformat=json'
     data = {
-        'cohortid': cohort.moodle_id,
-        'userids[0]': student.moodle_id
+        'members[0][cohorttype][type]': 'id',
+        'members[0][cohorttype][value]': cohort.moodle_id,
+        'members[0][usertype][type]': 'id',
+        'members[0][usertype][value]': student.moodle_id
     }
     if os.environ['CREATE'] == 'True' or \
             os.environ['CREATE'] == 'Manual' and \
             input(f'Add {student.username} to {cohort.name} (y/n)? ') == 'y':
-        response = requests.get(url, data=data, verify=True)
-        if os.getenv('DEBUG') == 'True':
-            print(f'add_member {student.username} to {cohort.name}')
+        response = requests.post(url, data=data, verify=True)
+        logger.info(f'add_member {student.username} to {cohort.name}')
     else:
-        if os.getenv('DEBUG') == 'True':
-            print(f'Not added {cohort.name} / {student}')
+        logger.info(f'Not added {cohort.name} / {student}')
 
 
 def delete_members(cohort: Cohort, student: Person) -> None:
@@ -190,11 +187,9 @@ def delete_members(cohort: Cohort, student: Person) -> None:
             os.environ['DELETE'] == 'Manual' and \
             input(f'Remove {student.username} from {cohort.name} (y/n)? ') == 'y':
         response = requests.post(url, params=data, verify=True)
-        if os.getenv('DEBUG') == 'True':
-            print(f'Delete {cohort.name} / {student}')
+        logger.info(f'Delete {cohort.name} / {student}')
     else:
-        if os.getenv('DEBUG') == 'True':
-            print(f'Not deleted {cohort.name} / {student}')
+        logger.info(f'Not deleted {cohort.name} / {student}')
 
 
 def create_moodle_cohort(cohort: Cohort) -> None:
@@ -218,8 +213,7 @@ def create_moodle_cohort(cohort: Cohort) -> None:
         response = requests.get(url, params=data, verify=True)
         cohort.moodle_id = response.json()[0]['id']
 
-        if os.getenv('DEBUG') == 'True':
-            print(f'create_cohort {cohort.name}')
+        logger.info(f'create_cohort {cohort.name}')
     pass
 
 def is_relevant_group(group: str) -> bool:
@@ -229,8 +223,7 @@ def is_relevant_group(group: str) -> bool:
     :return:
     """
     if not re.match(r'[A-Z]{2,3}\d{2}[a-z]$', group):
-        if os.getenv('DEBUG') == 'True':
-            print(f'Skipping AD Group {group}')
+        logger.info(f'Skipping AD Group {group}')
         return False
 
     match = re.search(r'\d{2}', group)
@@ -238,8 +231,7 @@ def is_relevant_group(group: str) -> bool:
         current_year = int(datetime.today().strftime("%Y"))
         group_year = 2000 + int(match.group())
         if group_year + 5 < current_year:
-            if os.getenv('DEBUG') == 'True':
-                print(f'Skipping AD Group {group}')
+            logger.info(f'Skipping AD Group {group}')
             return False
 
     return True
@@ -289,4 +281,16 @@ def find_groupid(name: str) -> int:
 
 
 if __name__ == '__main__':
+    load_dotenv()
+    logger = logging.getLogger(__name__)
+    loglevel = logging.ERROR
+    if os.getenv('LOGLEVEL') == 'INFO':
+        loglevel = logging.INFO
+    elif os.getenv('LOGLEVEL') == 'DEBUG':
+        loglevel = logging.DEBUG
+    logging.basicConfig(
+        filename=os.getenv('LOGFILE'),
+        level=loglevel,
+        format='%(asctime)s %(message)s'
+    )
     main()
